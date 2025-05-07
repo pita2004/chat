@@ -1,0 +1,62 @@
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Embedding, LSTM, Dense, Dropout
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+import pickle
+
+# Base de dados de perguntas e respostas
+faq_data = {
+    "O meu computador tem tela azul, o que fazer?": "Reinicie no modo de segurança, atualize os drivers e verifique o hardware.",
+    "O PC está muito lento, como resolver?": "Feche programas desnecessários, verifique vírus e faça limpeza de disco.",
+    "A impressora não imprime, como resolver?": "Verifique a ligação, defina como impressora padrão e atualize os drivers.",
+    "O Wi-Fi não funciona, o que faço?": "Reinicie o router, reconecte-se à rede e atualize os drivers.",
+    "A bateria do portátil descarrega rápido, como melhorar?": "Reduza o brilho do ecrã, feche apps em segundo plano e verifique as configurações de energia.",
+}
+
+# Criar listas de perguntas e respostas
+perguntas = list(faq_data.keys())
+respostas = list(faq_data.values())
+
+# Tokenização das perguntas
+tokenizer = Tokenizer()
+tokenizer.fit_on_texts(perguntas)
+vocab_size = len(tokenizer.word_index) + 1
+
+# Converter perguntas para sequências numéricas
+sequences = tokenizer.texts_to_sequences(perguntas)
+max_length = max(len(seq) for seq in sequences)
+padded_sequences = pad_sequences(sequences, maxlen=max_length, padding='post')
+
+# Criar rótulos numéricos para as respostas
+resposta_dict = {resposta: i for i, resposta in enumerate(respostas)}
+y_train = np.array([resposta_dict[faq_data[pergunta]] for pergunta in perguntas])
+
+# Criar a rede neural
+model = Sequential([
+    Embedding(vocab_size, 16, input_length=max_length),
+    LSTM(32, return_sequences=True),
+    Dropout(0.2),
+    LSTM(32),
+    Dense(32, activation='relu'),
+    Dense(len(respostas), activation='softmax')  # Número de respostas como saída
+])
+
+model.compile(loss='sparse_categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+
+# Treinar o modelo
+print("🟢 Treinando o modelo...")
+model.fit(padded_sequences, y_train, epochs=500, verbose=1)
+
+# Guardar o modelo treinado
+model.save("modelo.h5")
+print("✅ Modelo treinado e guardado como 'modelo.h5'.")
+
+# Guardar o tokenizer para reutilizar depois
+with open("tokenizer.pkl", "wb") as f:
+    pickle.dump(tokenizer, f)
+
+# Guardar o dicionário de respostas
+with open("respostas.pkl", "wb") as f:
+    pickle.dump(respostas, f)
